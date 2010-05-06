@@ -6,6 +6,8 @@ from direct.actor import Actor
 from pandac.PandaModules import *
 from direct.showbase.DirectObject import DirectObject
 
+from panda3d.ai import *
+
 
 import math 
 
@@ -30,12 +32,26 @@ class RTSEngine(DirectObject):
         self.setupActors()
         self.setupLighting()
         self.setupMouseCollision()
+        self.setupAI()
         self.accept("mouse1",self.selectObject) 
         taskMgr.add(self.handleCursor,"HandleMouse")
         taskMgr.add(self.handleRalphCollision,"HandleRalphCollision")
         
         
    
+   
+    def setupAI(self):
+        self.AIWorld = AIWorld(render)
+        self.AIChar = AICharacter("ralph",self.ralph,60,0.5,15)
+        self.AIWorld.addAiChar(self.AIChar)
+        self.AIBehaviors = self.AIChar.getAiBehaviors()
+        
+        
+        taskMgr.add(self.AIUpdate,"AIUpdate")
+        
+        return
+    
+    
    
    
     def run(self):
@@ -77,7 +93,7 @@ class RTSEngine(DirectObject):
     def setupActors(self):
         # Create the main character, Ralph
         ralphStartPos = self.environ.find("**/start_point").getPos()
-        self.ralph = Actor.Actor("/home/focus/svn/panda3d-rts-engine/models/ralph",{"run":"models/ralph-run","walk":"models/ralph-walk"})
+        self.ralph = Actor.Actor("/home/focus/svn/panda3d-rts-engine/models/ralph",{"run":"/home/focus/svn/panda3d-rts-engine/models/ralph-run","walk":"/home/focus/svn/panda3d-rts-engine/models/ralph-walk"})
         self.ralph.reparentTo(render)
         self.ralph.setScale(.2)
         self.ralph.setPos(1,1,1)
@@ -135,28 +151,51 @@ class RTSEngine(DirectObject):
         self.environ.setScale(0.25,0.25,0.25) 
         self.environ.setPos(0,0,0)
         
-    def mover(self):
+    def setMove(self):
+        try:
+            self.AIBehaviors.pathFindTo(self.floater)
+        except:
+            print "Failed"
+            
+        self.ralph.loop("run")
         return
         
         
     def selectObject(self):
         if(base.mouseWatcherNode.hasMouse()):
-            
-            if(selected == None):
-                return
-            
-            mpos = base.mouseWatcherNode.getMouse() 
-            pos3d = Point3() 
-            nearPoint = Point3() 
-            farPoint = Point3() 
-            base.camLens.extrude(mpos, nearPoint, farPoint) 
-            if self.plane.intersectsLine(pos3d, 
-                render.getRelativePoint(camera, nearPoint), 
-                render.getRelativePoint(camera, farPoint)):
-                self.floater.setPos(render, pos3d.getX(),pos3d.getY(),self.pickerNP.getZ())
+
+            print "selected : %s , Picked %s " % (self.picked , self.selected)
+            if(self.selected == None):
+                if(self.picked == None):
+                    return
+                else:
+                    self.selected = self.picked
+                    
+            if(self.picked == None):
+                mpos = base.mouseWatcherNode.getMouse() 
+                pos3d = Point3() 
+                nearPoint = Point3() 
+                farPoint = Point3() 
+                base.camLens.extrude(mpos, nearPoint, farPoint) 
+                if self.plane.intersectsLine(pos3d, 
+                    render.getRelativePoint(camera, nearPoint), 
+                    render.getRelativePoint(camera, farPoint)):
+                    self.floater.setPos(render, pos3d.getX(),pos3d.getY(),self.pickerNP.getZ())
+                    print "Floater new location : ",self.floater.getPos()
+                    self.setMove()
+                    return 
             
         
+    def AIUpdate(self,task):
         
+        self.AIWorld.update()
+        if(self.AIBehaviors.behaviorStatus("pathfollow") == "done"):
+            self.ralph.stop("run")
+            self.ralph.pose("walk",0)
+           
+        return task.cont
+    
+    
     def handleRalphCollision(self,task):
         
         entries = []
@@ -168,7 +207,7 @@ class RTSEngine(DirectObject):
         if (len(entries)>0) and (entries[0].getIntoNode().getName() == "terrain"):
             self.ralph.setZ(entries[0].getSurfacePoint(render).getZ())
         else:
-            self.ralph.setPos(startpos)
+            self.ralph.setPos(0,0,0)
 
         return task.cont
     
