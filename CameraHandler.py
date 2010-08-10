@@ -59,7 +59,7 @@ class CameraHandler(DirectObject.DirectObject):
         self.panLimitsY = Vec2(-20, 20) 
         # These two vairables will serve as limits for how far the camera can pan, so you don't scroll away from the map.
         
-        self.maxZoomOut = 50
+        self.maxZoomOut = 500
         self.maxZoomIn = 5
         #These two variables set the max distance a person can zoom in or out
 

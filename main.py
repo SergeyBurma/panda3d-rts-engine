@@ -1,15 +1,23 @@
 
 import direct.directbase.DirectStart
+from GuiTools import *
 from CameraHandler import CameraHandler
 from direct.task import Task 
 from direct.actor import Actor
 from pandac.PandaModules import *
 from direct.showbase.DirectObject import DirectObject
 
+
+from pandac.PandaModules import GeoMipTerrain 
+from pandac.PandaModules import TextureStage 
+from pandac.PandaModules import TextNode 
+from pandac.PandaModules import Texture 
+from pandac.PandaModules import Filename 
+
 from panda3d.ai import *
 
-
 import math 
+SHADER = ""
 
 
 class RTSEngine(DirectObject):
@@ -31,11 +39,8 @@ class RTSEngine(DirectObject):
         self.setupCamera()
         self.setupActors()
         self.setupLighting()
-        self.setupMouseCollision()
-        self.setupAI()
-        self.accept("mouse1",self.selectObject) 
-        taskMgr.add(self.handleCursor,"HandleMouse")
-        taskMgr.add(self.handleRalphCollision,"HandleRalphCollision")
+        self.gui = mouseSelectTool()
+        self.gui.selectable = [self.box,self.box2]
         
         
    
@@ -73,18 +78,8 @@ class RTSEngine(DirectObject):
         self.ralphGroundHandler = CollisionHandlerQueue()
         self.trav.addCollider(self.ralphGroundColNp, self.ralphGroundHandler)
  
-        
-        
-        pickerNode = CollisionNode('mouseRay')
-        self.pickerNP = camera.attachNewNode(pickerNode)
-        pickerNode.setFromCollideMask(GeomNode.getDefaultCollideMask())
-        self.pickerRay = CollisionRay()
-        pickerNode.addSolid(self.pickerRay)
-        self.trav.addCollider(self.pickerNP ,self.cHandler)
-        self.trav.showCollisions(render)
-        z=0
-        self.plane = Plane(Vec3(0, 0, 1), Point3(0, 0, z)) 
 
+        
         
     def setupCamera(self):
         self.camHandler = CameraHandler()
@@ -93,33 +88,25 @@ class RTSEngine(DirectObject):
     def setupActors(self):
         # Create the main character, Ralph
         ralphStartPos = self.environ.find("**/start_point").getPos()
-        self.ralph = Actor.Actor("/home/focus/svn/panda3d-rts-engine/models/ralph",{"run":"/home/focus/svn/panda3d-rts-engine/models/ralph-run","walk":"/home/focus/svn/panda3d-rts-engine/models/ralph-walk"})
+        
+        self.ralph = Actor.Actor("models/ralph",{"run":"models/ralph-run","walk":"models/ralph-walk"})
+        self.ralph =  loader.loadModel("models/ralph")
+        self.ralph.setPos(ralphStartPos)
         self.ralph.reparentTo(render)
         self.ralph.setScale(.2)
-        self.ralph.setPos(1,1,1)
-        self.ralph.setTag("pickable","1")
-        
-        self.floater = NodePath(PandaNode("floater"))
-        self.floater.setPos(self.ralph.getPos())
-        self.floater.reparentTo(render)
-        
-        self.pointer = loader.loadModel("/home/focus/svn/panda3d-rts-engine/models/box")
-        self.pointer.setPos(5,5,1)
-        self.pointer.setColor(1,0,0)
-        self.pointer.setScale(.5)
-        self.pointer.reparentTo(render)
         
         
-        cmfg = CardMaker('fg') 
-        cmfg.setFrame(0, 1, -1, 0) 
-        self.bar = render2d.attachNewNode(cmfg.generate())
-        self.bar.setColor(0,1,0,.5)
-        self.bar.setTransparency(1)
+        self.box = loader.loadModel("models/box")
+        self.box.setPos(5,5,1)
+        self.box.setColor(1,0,0)
+        self.box.setScale(.5)
+        self.box.reparentTo(render)
         
-
-        
-    
-        
+        self.box2 = loader.loadModel("models/box")
+        self.box2.setPos(-10,-10,1)
+        self.box2.setColor(1,1,0)
+        self.box2.setScale(.5)
+        self.box2.reparentTo(render)
         
         
         
@@ -140,20 +127,49 @@ class RTSEngine(DirectObject):
         alight.setColor(VBase4(0.5,0.5,0.5,0.5))
         self.alnp = self.ralph.attachNewNode(alight)
         
-        self.floater.attachNewNode(alight)
-        self.floater.setLight(self.alnp)
         
         
         
     def setupEnvironment(self):
-        self.environ = loader.loadModel("/home/focus/svn/panda3d-rts-engine/models/world") 
+        
+        #self.environ = loader.loadModel("models/world")
+        #self.terrain = GeoMipTerrain("MyTerrain")
+        #self.terrain.setHeightfield(Filename("models/testHeightMap.png"))
+        #self.terrain.setBruteforce(True) 
+        #self.terrain.setBlockSize(64)
+        #self.terrain.setNear(40)
+        #self.terrain.setFar(100)
+        #self.terrain.setFocalPoint(base.camera)
+        #self.environ = self.terrain.getRoot()
+        #self.environ.setShader(Shader.make(SHADER))
+        #self.environ.setSz(50)
+
+        #self.terrain_tex = loader.loadTexture('world/shortGrass.png')
+        #self.ts = TextureStage('ts')
+        #self.environ.setTexScale(self.ts.getDefault(),10,10)
+        #self.environ.setTexture(self.terrain_tex,1)
+        #self.terrain.generate() 
+        #self.environ.reparentTo(render)
+        #base.toggleWireframe()
+        
+        #self.environ = self.terrain.getRoot()
+        #self.environ.setPos(1,1,0)
+        
+        
+        
+        self.environ = loader.loadModel("models/world") 
         self.environ.reparentTo(render)
         self.environ.setScale(0.25,0.25,0.25) 
         self.environ.setPos(0,0,0)
-        
+
+    def update(self, task): 
+        self.terrain.setFocalPoint(base.camera.getX(),base.camera.getY()) 
+        self.terrain.update()
+        return task.cont
+            
     def setMove(self):
         try:
-            self.AIBehaviors.pathFindTo(self.floater)
+            print "none"
         except:
             print "Failed"
             
@@ -161,30 +177,6 @@ class RTSEngine(DirectObject):
         return
         
         
-    def selectObject(self):
-        if(base.mouseWatcherNode.hasMouse()):
-
-            print "selected : %s , Picked %s " % (self.picked , self.selected)
-            if(self.selected == None):
-                if(self.picked == None):
-                    return
-                else:
-                    self.selected = self.picked
-                    
-            if(self.picked == None):
-                mpos = base.mouseWatcherNode.getMouse() 
-                pos3d = Point3() 
-                nearPoint = Point3() 
-                farPoint = Point3() 
-                base.camLens.extrude(mpos, nearPoint, farPoint) 
-                if self.plane.intersectsLine(pos3d, 
-                    render.getRelativePoint(camera, nearPoint), 
-                    render.getRelativePoint(camera, farPoint)):
-                    self.floater.setPos(render, pos3d.getX(),pos3d.getY(),self.pickerNP.getZ())
-                    print "Floater new location : ",self.floater.getPos()
-                    self.setMove()
-                    return 
-            
         
     def AIUpdate(self,task):
         
@@ -213,39 +205,6 @@ class RTSEngine(DirectObject):
     
                             
                 
-                
-    def handleCursor(self,task):
-        if base.mouseWatcherNode.hasMouse(): 
-            # We're going to use the mouse, so we have to make sure it's in the game window. If it's not and we try to use it, we'll get 
-            # a crash error. 
-            mpos = base.mouseWatcherNode.getMouse()
-            pos3d = Point3()
-            nearPoint = Point3()
-            farPoint = Point3()
-            self.pickerRay.setFromLens(base.camNode,mpos.getX(),mpos.getY())
-            self.trav.traverse(render)
-            
-            if(self.cHandler.getNumEntries > 0):
-                self.cHandler.sortEntries()
-                try:
-                    picked = self.cHandler.getEntry(0).getIntoNodePath()
-                    picked = picked.findNetTag("pickable")
-                    if not picked.isEmpty():
-                        picked.setLight(self.alnp)
-                        self.picked = picked
-                    else:
-                        if not (self.picked == None):
-                            self.picked.clearLight(self.alnp)
-                            self.picked= None
-                    
-
-                except:
-                    pass
-                
-
-                
-        return task.cont
-
 
         
 
@@ -254,4 +213,5 @@ class RTSEngine(DirectObject):
 if __name__ == "__main__":
     
     rts = RTSEngine()
+    
     rts.run()
