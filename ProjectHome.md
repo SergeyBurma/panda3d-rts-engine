@@ -1,0 +1,1 @@
+This project is aimed at developing a full RTS Engine using Panda3D. Initial development will be done in Python , followed by a re-write in C++.
